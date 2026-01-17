@@ -5,7 +5,7 @@ import CTAButton from '@/components/CTAButton'; // Replace CalendlyModal import
 const faqData = [
     {
         id: 1,
-        question: 'What is FoundersCrowd?',
+        question: 'What is FoundersCrowd ?',
         answer:
             'FoundersCrowd is the all-in-one platform where startups can raise capital online from anywhere in the world. We combine AI-powered investor funnels, global marketing tools, and compliance support to help founders launch and scale successful funding campaigns.',
     },
