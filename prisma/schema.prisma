@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  INVESTOR
+  ISSUER
+  BD_PARTNER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum KYCStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum AccreditationStatus {
+  NOT_VERIFIED
+  SELF_CERTIFIED
+  VERIFIED
+}
+
+enum AMLRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  BLOCKED
+}
+
+enum OfferingType {
+  REG_CF
+  REG_A_PLUS
+  REG_D_506B
+  REG_D_506C
+}
+
+enum OfferingStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  LIVE
+  CLOSED
+  CANCELLED
+  CHANGES_REQUESTED
+}
+
+enum SecurityType {
+  EQUITY
+  DEBT
+  REVENUE_SHARE
+  SAFE
+  CONVERTIBLE_NOTE
+}
+
+enum InvestmentStatus {
+  COMMITTED
+  SIGNED
+  FUNDED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentMethod {
+  ACH
+  WIRE
+  CARD
+  CRYPTO
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  firstName     String?
+  lastName      String?
+  role          UserRole   @default(INVESTOR)
+  status        UserStatus @default(ACTIVE)
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  investorProfile InvestorProfile?
+  issuerProfile   IssuerProfile?
+  bdPartnerProfile BDPartnerProfile?
+  investments     Investment[]
+  watchlist       WatchlistItem[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  backupCodes     BackupCode[]
+  crmContact      CRMContact?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model BackupCode {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  used      Boolean  @default(false)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model InvestorProfile {
+  id                   String              @id @default(cuid())
+  userId               String              @unique
+  kycStatus            KYCStatus           @default(NOT_STARTED)
+  accreditationStatus  AccreditationStatus @default(NOT_VERIFIED)
+  amlRiskLevel         AMLRiskLevel        @default(LOW)
+  onboardingCompleted  Boolean             @default(false)
+  annualIncomeCents    BigInt?
+  netWorthCents        BigInt?
+  ssnEncrypted         String?
+  dobEncrypted         String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  state                String?
+  zipCode              String?
+  country              String              @default("US")
+  employmentStatus     String?
+  investmentExperience String?
+  riskTolerance        String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investments             Investment[]
+  kycInquiries            KYCInquiry[]
+  amlScreenings           AMLScreening[]
+  accreditationVerifications AccreditationVerification[]
+  investmentLimitRecords  InvestmentLimitRecord[]
+  shareRecords            ShareRecord[]
+  capTableEntries         CapTableEntry[]
+}
+
+model IssuerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  companyName     String
+  einEncrypted    String?
+  website         String?
+  description     String?
+  industry        String?
+  founded         Int?
+  employeeCount   Int?
+  stateOfIncorp   String?
+  entityType      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offerings Offering[]
+}
+
+model BDPartnerProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  firmName   String
+  crdNumber  String?
+  finraId    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Offering {
+  id                    String         @id @default(cuid())
+  slug                  String         @unique
+  issuerId              String
+  title                 String
+  type                  OfferingType
+  status                OfferingStatus @default(DRAFT)
+  securityType          SecurityType   @default(EQUITY)
+  shortDescription      String?
+  longDescription       String?
+  heroImageUrl          String?
+  minimumInvestmentCents BigInt        @default(10000)
+  maximumRaiseCents     BigInt
+  minimumRaiseCents     BigInt
+  totalRaisedCents      BigInt         @default(0)
+  totalCommittedCents   BigInt         @default(0)
+  totalInvestors        Int            @default(0)
+  closeDate             DateTime?
+  pricePerUnitCents     BigInt         @default(100)
+  valuationCapCents     BigInt?
+  discountRate          Float?
+  interestRate          Float?
+  maturityDate          DateTime?
+  useOfProceeds         String?
+  riskFactors           String?
+  financialsUrl         String?
+  pitchDeckUrl          String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  issuer        IssuerProfile      @relation(fields: [issuerId], references: [id])
+  investments   Investment[]
+  documents     OfferingDocument[]
+  updates       OfferingUpdate[]
+  questions     OfferingQuestion[]
+  watchlistItems WatchlistItem[]
+  shareRecords  ShareRecord[]
+  capTableEntries CapTableEntry[]
+  webhookEvents WebhookEvent[]
+}
+
+model OfferingDocument {
+  id          String   @id @default(cuid())
+  offeringId  String
+  name        String
+  type        String
+  url         String
+  sizeBytes   Int?
+  createdAt   DateTime @default(now())
+  offering    Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+}
+
+model OfferingUpdate {
+  id         String   @id @default(cuid())
+  offeringId String
+  title      String
+  content    String
+  createdAt  DateTime @default(now())
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+}
+
+model OfferingQuestion {
+  id         String   @id @default(cuid())
+  offeringId String
+  userId     String?
+  question   String
+  answer     String?
+  isPublic   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  answeredAt DateTime?
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+}
+
+model WatchlistItem {
+  id         String   @id @default(cuid())
+  userId     String
+  offeringId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, offeringId])
+}
+
+model Investment {
+  id               String           @id @default(cuid())
+  investorId       String
+  offeringId       String
+  status           InvestmentStatus @default(COMMITTED)
+  amountCents      BigInt
+  unitCount        Int              @default(0)
+  pricePerUnitCents BigInt
+  paymentMethod    PaymentMethod    @default(ACH)
+  committedAt      DateTime?
+  signedAt         DateTime?
+  fundedAt         DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  ipAddress        String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  investor        User                   @relation(fields: [investorId], references: [id])
+  investorProfile InvestorProfile        @relation(fields: [investorId], references: [userId])
+  offering        Offering               @relation(fields: [offeringId], references: [id])
+  limitRecord     InvestmentLimitRecord?
+
+  @@unique([investorId, offeringId])
+}
+
+model InvestmentLimitRecord {
+  id                   String     @id @default(cuid())
+  investorId           String
+  investmentId         String     @unique
+  annualIncomeCents    BigInt
+  netWorthCents        BigInt
+  calculatedLimitCents BigInt
+  usedLimitCents       BigInt
+  remainingLimitCents  BigInt
+  createdAt            DateTime   @default(now())
+
+  investor   InvestorProfile @relation(fields: [investorId], references: [userId])
+  investment Investment      @relation(fields: [investmentId], references: [id])
+}
+
+model KYCInquiry {
+  id              String    @id @default(cuid())
+  investorId      String
+  externalId      String?
+  provider        String    @default("persona")
+  status          String
+  completedAt     DateTime?
+  rawResponse     Json?
+  createdAt       DateTime  @default(now())
+  investor        InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+}
+
+model AMLScreening {
+  id          String   @id @default(cuid())
+  investorId  String
+  externalId  String?
+  provider    String   @default("sardine")
+  riskLevel   AMLRiskLevel @default(LOW)
+  rawResponse Json?
+  createdAt   DateTime @default(now())
+  investor    InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+}
+
+model AccreditationVerification {
+  id          String              @id @default(cuid())
+  investorId  String
+  method      String
+  status      AccreditationStatus
+  verifiedAt  DateTime?
+  expiresAt   DateTime?
+  documents   Json?
+  createdAt   DateTime            @default(now())
+  investor    InvestorProfile     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+}
+
+model ShareRecord {
+  id          String   @id @default(cuid())
+  investorId  String
+  offeringId  String
+  unitCount   Int
+  issuedAt    DateTime @default(now())
+  investor    InvestorProfile @relation(fields: [investorId], references: [userId])
+  offering    Offering        @relation(fields: [offeringId], references: [id])
+}
+
+model CapTableEntry {
+  id          String   @id @default(cuid())
+  investorId  String
+  offeringId  String
+  unitCount   Int
+  ownershipPct Float
+  updatedAt   DateTime @updatedAt
+  investor    InvestorProfile @relation(fields: [investorId], references: [userId])
+  offering    Offering        @relation(fields: [offeringId], references: [id])
+
+  @@unique([investorId, offeringId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  offeringId  String?
+  provider    String
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  offering    Offering? @relation(fields: [offeringId], references: [id])
+}
+
+model CRMContact {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  tags       String[]
+  notes      String?
+  score      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities CRMActivity[]
+}
+
+model CRMActivity {
+  id          String   @id @default(cuid())
+  contactId   String
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+  contact     CRMContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+}

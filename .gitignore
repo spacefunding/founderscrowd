@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# Prisma
+prisma/migrations/
+
+# Misc
+.DS_Store
+*.pem
+tsconfig.tsbuildinfo
